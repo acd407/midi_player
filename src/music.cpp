@@ -4,7 +4,7 @@
 #include <string>
 
 template<typename T>
-constexpr auto IS_NOTE(T c) { return ((c) >= '0' && (c) < '7'); }
+constexpr auto IS_NOTE(T c) { return ((c) >= '0' && (c) <= '7'); }
 #define BUFFERSIZE 8 * 1024
 
 music::music(const char *filename) {
@@ -40,16 +40,13 @@ music::~music() {
     midiOutClose(handle);
 };
 
-// 一个Note中可能出现的第一个 identifier
-bool music::is_identifier(char c) {
-    if (c == '+' || c == '-' || IS_NOTE(c))
-        return true;
-    return false;
-}
-
 // 返回非空字符
 char music::getunblank() {
     char c = file.raw[file.offset++];
+    if (!c) {
+        INF("forget to write the end sign '$'");
+        return 0;
+    }
     while (c == ' ' || c == '\t' || c == '\n') {
         if (c == '\n')
             file.line++;
@@ -58,18 +55,16 @@ char music::getunblank() {
     return c;
 }
 
-// 返回的只是Note，CMD在函数内被处理
-// 一个完整的Note，只返回第一个字符
-char music::getch() // 不帮忙清逗号，因为多字符没法弄
+// 返回的只是Note, CMD在函数内被处理
+// 一个完整的Note, 只返回第一个字符
+char music::getch() // 不帮忙清逗号, 因为多字符没法弄
 {
     char c = getunblank();
     if (c == '$')   // 结束分支
         return 0;
-    if (is_identifier(c))   // 标准字符分支
-        return c;
     if (c == '@') { // 注释：返回字符为下一行第一个有效字符
         while (c != '\n')
-            c = file.raw[file.offset++];
+            c = file.raw[file.offset++]; // c == '\n', 出循环
         c = getch();
         return c;
     }
@@ -119,22 +114,29 @@ char music::getch() // 不帮忙清逗号，因为多字符没法弄
     }
     if (c == 'O') { // Octave
 		int segment = default_segment;
+		int offset = default_offset;
 		c = getch();
-		switch (c) {
-			case '+':
-				while (c == '+') {
-					segment++;
-					c = getch();
-				} break;
-			case '-':
-				while (c == '-') {
-					segment--;
-					c = getch();
-				} break;
-			default:
-				WAR("segment number not set, set to default");
-		}
-		default_segment = segment;
+		if (IS_NOTE(c)) {
+		    offset = c - '0';
+		    c = getch();
+		    default_offset = offset;
+		} else {
+            switch (c) {
+                case '+':
+                    while (c == '+') {
+                        segment++;
+                        c = getch();
+                    } break;
+                case '-':
+                    while (c == '-') {
+                        segment--;
+                        c = getch();
+                    } break;
+                default:
+                    WAR("segment or offset not provide, set to default");
+            }
+            default_segment = segment;
+        }
         if (c != ',') {
             WAR(fmt::format("expect ',', but acturlly get: {:c}, skipping", c));
             while (c != ',')
@@ -209,10 +211,10 @@ Notes music::get_note() {
             c = getch();
         }
 
-        ret.notes->scale = segment * 12 + offset;
+        ret.notes->scale = segment * 12 + offset + default_offset;
     }
     
-    // 3.- 等价于 3/--
+    // 3. 等价于 3/-
     // 确定音符长度
     if (c == '.') { // 延长一半
         ret.notes->sleep += ret.notes->sleep / 2;
@@ -230,6 +232,12 @@ Notes music::get_note() {
             c = getch();
         }
         ret.notes->sleep += n * default_Note.sleep;
+    }
+    
+    // 0 延音符, 实现音符共奏, 音符长度取决于最后一个非 0 延音的音符
+    if (c == '\'') { 
+        ret.notes->sleep = 0;
+        c = getch();
     }
     
     // && c != '$' 直接使用 '$' 是不被允许的
