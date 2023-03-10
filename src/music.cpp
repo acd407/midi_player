@@ -8,6 +8,7 @@ constexpr auto IS_NOTE(T c) { return ((c) >= '0' && (c) <= '7'); }
 #define BUFFERSIZE 8 * 1024
 
 music::music(const char *filename) {
+    this->file.filename = filename;
     FILE *fp;
     fopen_s(&fp, filename, "r");
     if (fp == nullptr)
@@ -77,10 +78,13 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
         }
         default_Note.sleep = int(60.0 / n * 1e3);
         file.offset++;
-        while ((c >= '0' && c <= '9') || c == '.')
+        while (c >= '0' && c <= '9' || c == '.'  || c == '-')
             c = file.raw[file.offset++];
-        while (c != ',')
-            c = file.raw[file.offset++];
+        if (c != ',') {
+            WAR(fmt::format("expect ',', but acturlly get: '{:c}', skipping", c));
+            while (c != ',')
+				c = file.raw[file.offset++];
+        }
         return getch();
     }
     if (c == 'V') { // Volume
@@ -91,10 +95,13 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
         }
         default_Note.volume = n;
         file.offset++;
-        while (c >= '0' && c <= '9')
+        while (c >= '0' && c <= '9' || c == '-')
             c = file.raw[file.offset++];
-        while (c != ',')
-            c = file.raw[file.offset++];
+        if (c != ',') {
+            WAR(fmt::format("expect ',', but acturlly get: '{:c}', skipping", c));
+            while (c != ',')
+				c = file.raw[file.offset++];
+        }
         return getch();
     }
     if (c == 'T') { // Timbre
@@ -104,12 +111,14 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
             n = default_Note.timbre;
         }
         midiOutShortMsg(handle, n << 8 | default_Note.channel);
-        // play_note({1,{n,0,}})
         file.offset++;
-        while (c >= '0' && c <= '9')
+        while (c >= '0' && c <= '9' || c == '-')
             c = file.raw[file.offset++];
-        while (c != ',')
-            c = file.raw[file.offset++];
+        if (c != ',') {
+            WAR(fmt::format("expect ',', but acturlly get: '{:c}', skipping", c));
+            while (c != ',')
+				c = file.raw[file.offset++];
+        }
         return getch();
     }
     if (c == 'O') { // Octave
@@ -123,25 +132,31 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
                     c = getch();
                 } break;
             case '-':
-                while (c == '-') {
-                    segment--;
-                    c = getch();
-                } break;
-            default:
-                if (0 == sscanf(file.raw + file.offset - 1, "%u", &offset))
-                    WAR("segment or offset not provide, set to default");
-                else
-                    if (offset > 11) {
-                        INF("try O+ to make big offset.\n\tO+ <=> O12");
-                        default_offset = offset;
+                if (*(file.raw + file.offset) < '0' || *(file.raw + file.offset) > '9') {
+                    while (c == '-') {
+                        segment--;
+                        c = getch();
                     }
-                while (c >= '0' && c <= '9')
+                    break; 
+                } // 自动跳入 default
+            default:
+                offset = 0;
+                offset = atoi(file.raw + file.offset - 1);
+                while (c >= '0' && c <= '9' || c == '-')
                     c = getch();
+                if (offset) {
+                    if (offset > 11)
+                        INF("try O+ to make big offset.\tO+ <=> O12");
+                    default_offset = offset;
+                } else {
+                    WAR("segment or offset not provide, set to default");
+                    break;
+                }
         }
         default_segment = segment;
         
         if (c != ',') {
-            WAR(fmt::format("expect ',', but acturlly get: {:c}, skipping", c));
+            WAR(fmt::format("expect ',', but acturlly get: '{:c}', skipping", c));
             while (c != ',')
 				c = file.raw[file.offset++];
         }
@@ -161,15 +176,17 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
 */
 
 Notes music::get_note() {
-    char c = getch();
-    if (c == 0)
-        return {0, nullptr};
-
     // 返回值结构体
-    Notes ret {
+    auto ret = *new Notes {
         1,
         new Note(default_Note)
     };
+
+    char c = getch();
+    if (c == 0) {
+        ret.num_note = 0;
+        return ret;
+    }
 
     int segment = default_segment, offset = default_offset;
     //  段/8度                      音符/偏移量
@@ -189,7 +206,7 @@ Notes music::get_note() {
     }
 
     if (!IS_NOTE(c))
-        ERR(fmt::format("next char is not note, is {}",c));
+        ERR(fmt::format("next char is not a valid note (0-7), is {}",c));
 
     // 空格音不用计算、没有升半音
     if (c == '0') {
@@ -246,7 +263,7 @@ Notes music::get_note() {
     // && c != '$' 直接使用 '$' 是不被允许的
     while (c != ',') {
         if (c != ' ' && c != '\t')
-            INF(fmt::format("non-null character skiped, the char is: {:c}",c));
+            INF("non-null character skiped");
         c = getunblank();
     }
     return ret;
@@ -273,8 +290,7 @@ void music::print() {
 }
 
 void music::play() {
-    while (play_note(get_note()))
-        ;
+    while (play_note(get_note()));
 }
 
 void music::putch() {
