@@ -116,27 +116,30 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
 		int segment = default_segment;
 		int offset = default_offset;
 		c = getch();
-		if (IS_NOTE(c)) {
-		    offset = c - '0';
-		    c = getch();
-		    default_offset = offset;
-		} else {
-            switch (c) {
-                case '+':
-                    while (c == '+') {
-                        segment++;
-                        c = getch();
-                    } break;
-                case '-':
-                    while (c == '-') {
-                        segment--;
-                        c = getch();
-                    } break;
-                default:
+        switch (c) {
+            case '+':
+                while (c == '+') {
+                    segment++;
+                    c = getch();
+                } break;
+            case '-':
+                while (c == '-') {
+                    segment--;
+                    c = getch();
+                } break;
+            default:
+                if (0 == sscanf(file.raw + file.offset - 1, "%u", &offset))
                     WAR("segment or offset not provide, set to default");
-            }
-            default_segment = segment;
+                else
+                    if (offset > 11) {
+                        INF("try O+ to make big offset.\n\tO+ <=> O12");
+                        default_offset = offset;
+                    }
+                while (c >= '0' && c <= '9')
+                    c = getch();
         }
+        default_segment = segment;
+        
         if (c != ',') {
             WAR(fmt::format("expect ',', but acturlly get: {:c}, skipping", c));
             while (c != ',')
