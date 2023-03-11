@@ -1,4 +1,4 @@
-#include <music.h>
+#include "music.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
@@ -28,11 +28,11 @@ music::music(const char *filename) {
         4,
         500
     };
-    
+
     // 默认 scale 段和偏移量
     default_segment = 4;
     default_offset = 0;
-    
+
     midiOutOpen(&handle, 0, 0, 0, CALLBACK_NULL);
 }
 
@@ -77,13 +77,13 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
             n = default_Note.sleep;
         }
         default_Note.sleep = int(60.0 / n * 1e3);
-        file.offset++;
-        while (c >= '0' && c <= '9' || c == '.'  || c == '-')
+        c = file.raw[file.offset++];
+        while (c >= '0' && c <= '9' || c == '.' || c == '-')
             c = file.raw[file.offset++];
         if (c != ',') {
             WAR(fmt::format("expect ',', but acturlly get: '{:c}', skipping", c));
             while (c != ',')
-				c = file.raw[file.offset++];
+                c = file.raw[file.offset++];
         }
         return getch();
     }
@@ -94,13 +94,13 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
             n = default_Note.volume;
         }
         default_Note.volume = n;
-        file.offset++;
+        c = file.raw[file.offset++];
         while (c >= '0' && c <= '9' || c == '-')
             c = file.raw[file.offset++];
         if (c != ',') {
             WAR(fmt::format("expect ',', but acturlly get: '{:c}', skipping", c));
             while (c != ',')
-				c = file.raw[file.offset++];
+                c = file.raw[file.offset++];
         }
         return getch();
     }
@@ -111,54 +111,54 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
             n = default_Note.timbre;
         }
         midiOutShortMsg(handle, n << 8 | default_Note.channel);
-        file.offset++;
+        c = file.raw[file.offset++];
         while (c >= '0' && c <= '9' || c == '-')
             c = file.raw[file.offset++];
         if (c != ',') {
             WAR(fmt::format("expect ',', but acturlly get: '{:c}', skipping", c));
             while (c != ',')
-				c = file.raw[file.offset++];
+                c = file.raw[file.offset++];
         }
         return getch();
     }
     if (c == 'O') { // Octave
-		int segment = default_segment;
-		int offset = default_offset;
-		c = getch();
+        int segment = default_segment;
+        int offset = default_offset;
+        c = getch();
         switch (c) {
-            case '+':
-                while (c == '+') {
-                    segment++;
+        case '+':
+            while (c == '+') {
+                segment++;
+                c = getch();
+            } break;
+        case '-':
+            if (*(file.raw + file.offset) < '0' || *(file.raw + file.offset) > '9') {
+                while (c == '-') {
+                    segment--;
                     c = getch();
-                } break;
-            case '-':
-                if (*(file.raw + file.offset) < '0' || *(file.raw + file.offset) > '9') {
-                    while (c == '-') {
-                        segment--;
-                        c = getch();
-                    }
-                    break; 
-                } // 自动跳入 default
-            default:
-                offset = 0;
-                offset = atoi(file.raw + file.offset - 1);
-                while (c >= '0' && c <= '9' || c == '-')
-                    c = getch();
-                if (offset) {
-                    if (offset > 11)
-                        INF("try O+ to make big offset.\tO+ <=> O12");
-                    default_offset = offset;
-                } else {
-                    WAR("segment or offset not provide, set to default");
-                    break;
                 }
+                break;
+            } // 自动跳入 default
+        default:
+            offset = 0;
+            offset = atoi(file.raw + file.offset - 1);
+            while (c >= '0' && c <= '9' || c == '-')
+                c = getunblank();
+            if (offset) {
+                if (offset > 11)
+                    INF("try O+ to make big offset.\tO+ <=> O12");
+                default_offset = offset;
+            } else {
+                WAR("segment or offset not provide, set to default");
+                break;
+            }
         }
         default_segment = segment;
-        
+
         if (c != ',') {
             WAR(fmt::format("expect ',', but acturlly get: '{:c}', skipping", c));
             while (c != ',')
-				c = file.raw[file.offset++];
+                c = file.raw[file.offset++];
         }
         return getch();
     }
@@ -193,27 +193,26 @@ Notes music::get_note() {
 
     // 确定段
     switch (c) {
-        case '+':
-            while (c == '+') {
-                segment++;
-                c = getch();
-            } break;
-        case '-':
-            while (c == '-') {
-                segment--;
-                c = getch();
-            } break;
+    case '+':
+        while (c == '+') {
+            segment++;
+            c = getch();
+        } break;
+    case '-':
+        while (c == '-') {
+            segment--;
+            c = getch();
+        } break;
     }
 
     if (!IS_NOTE(c))
-        ERR(fmt::format("next char is not a valid note (0-7), is {}",c));
+        ERR(fmt::format("next char is not a valid note (0-7), is {}", c));
 
     // 空格音不用计算、没有升半音
     if (c == '0') {
         ret.notes->scale = 128;
         c = getch();
-    }
-    else {
+    } else {
         offset = c - 48 - 1; // 数字化
         c = getch();
 
@@ -233,7 +232,7 @@ Notes music::get_note() {
 
         ret.notes->scale = segment * 12 + offset + default_offset;
     }
-    
+
     // 3. 等价于 3/-
     // 确定音符长度
     if (c == '.') { // 延长一半
@@ -244,7 +243,7 @@ Notes music::get_note() {
             ret.notes->sleep /= 2;
             c = getch();
         }
-    
+
     if (c == '-') { // 延长 n 个 '-'
         int n = 0;
         while (c == '-') {
@@ -253,13 +252,13 @@ Notes music::get_note() {
         }
         ret.notes->sleep += n * default_Note.sleep;
     }
-    
+
     // 0 延音符, 实现音符共奏, 音符长度取决于最后一个非 0 延音的音符
-    if (c == '\'') { 
+    if (c == '\'') {
         ret.notes->sleep = 0;
         c = getch();
     }
-    
+
     // && c != '$' 直接使用 '$' 是不被允许的
     while (c != ',') {
         if (c != ' ' && c != '\t')

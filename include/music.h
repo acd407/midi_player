@@ -53,21 +53,21 @@ enum { error = 0, warning = 1, info = 2 };
 #define WAR(description) interupt<warning>(__FILE__, __LINE__, description)
 #define INF(description) interupt<info>(__FILE__, __LINE__, description)
 
-static std::map<int, std::string> level_str_map{
-	{error,"error"},
-	{warning,"warning"},
-	{info,"info"}
+static std::map<int, std::string> level_str_map {
+    {error,"error"},
+    {warning,"warning"},
+    {info,"info"}
 };
 
 static const char *level_color_str[] = {"\033[91m", "\033[95m", "\033[96m"};
 
 template <int level, typename T>
 void music::interupt(const char *file, int line, T whicherr) {
-	fmt::print("{}:{}: {}{}:\033[0m {}\n", file, line, level_color_str[level], level_str_map[level], whicherr);
+    fmt::print("{}:{}: {}{}:\033[0m {}\n", file, line, level_color_str[level], level_str_map[level], whicherr);
     if (line)
-	    print_content<level>();
+        print_content<level>();
     if (!level)
-		exit(EXIT_FAILURE);
+        exit(EXIT_FAILURE);
 }
 
 template <int level>
@@ -75,26 +75,30 @@ void music::print_content() {
     char *current_pos = file.raw + file.offset - 1;
     char *begin = current_pos;
     while (*begin != '\n')
-		begin--;
-	begin++;	// 本行第一个字符
+        begin--;
+    begin++;	// 本行第一个字符
 
-	uint64_t linelen = 0;
-	while (begin[linelen] != '\n') // i: 行长度
-		linelen++;
-	std::string out{begin,linelen}; // 输出的字符串
-    int lastcomma = current_pos - begin - 1, 
+    uint64_t linelen = 0;
+    while (begin[linelen] != '\n') // i: 行长度
+        linelen++;
+    std::string out {begin,linelen}; // 输出的字符串
+    int lastcomma = current_pos - begin - 1,
         nextcomma = current_pos - begin + 1; // 出错位置前后逗号
 
     while (begin[nextcomma] != ',' && begin[nextcomma] != '\n')
         nextcomma++;
     out.insert(nextcomma, "\033[0m"); // 恢复控制字符插入 
-    while (begin[lastcomma] != ',' && begin[lastcomma] != '\n')
+    while (begin[lastcomma] != ',' && begin[lastcomma] != '\n') {
         lastcomma--;
+        if (lastcomma == 0)
+            break;
+    }
+        
     out.insert(lastcomma, level_color_str[level]); // 彩色控制字符插入
 
-	fmt::print("line:{: >3} | {}\n         | {}{}^\033[0m\n",
-        file.line,out, 
-        std::string(current_pos - begin,' '),
+    fmt::print("\tline:{: >3} | {}\n\t\t | {}{}^\033[0m\n",
+        file.line, out,
+        std::string(current_pos - begin, ' '),
         level_color_str[level]
     );
 }
