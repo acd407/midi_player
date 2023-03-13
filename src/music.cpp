@@ -1,4 +1,4 @@
-#include "music.h"
+#include <music.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
@@ -89,7 +89,7 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
     }
     if (c == 'V') { // Volume
         int n = atoi(file.raw + file.offset);
-        if (n == 0) {
+        if (n < 0 || n > 127) {
             WAR("illegal volume input, set volume to default");
             n = default_Note.volume;
         }
@@ -110,7 +110,7 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
             WAR("illegal timbre input, set timbre to default");
             n = default_Note.timbre;
         }
-        midiOutShortMsg(handle, n << 8 | default_Note.channel);
+        midiOutShortMsg(handle, n << 8 | 0xC0 | default_Note.channel);
         c = file.raw[file.offset++];
         while (c >= '0' && c <= '9' || c == '-')
             c = file.raw[file.offset++];
@@ -165,15 +165,7 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
     return c;
 }
 
-/*
-  blank={ ...}{\t...},{ ...}{\n...}
-  一共有这几种语句：
-  Speed:  S{unsigned int}$blank
-  Timbre: T{byte}$blank
-  Volume: V{byte}$blank
-
-  {+-}[0..7]#.{/...}{-...}$blank
-*/
+// [+-]{0..7}[#][.][/...][-...],
 
 Notes music::get_note() {
     // 返回值结构体
@@ -235,15 +227,14 @@ Notes music::get_note() {
 
     // 3. 等价于 3/-
     // 确定音符长度
+    while (c == '/') { // 每一个 '/' 缩短一半
+        ret.notes->sleep /= 2;
+        c = getch();
+    }
     if (c == '.') { // 延长一半
         ret.notes->sleep += ret.notes->sleep / 2;
         c = getch();
-    } else
-        while (c == '/') { // 每一个 '/' 缩短一半
-            ret.notes->sleep /= 2;
-            c = getch();
-        }
-
+    }
     if (c == '-') { // 延长 n 个 '-'
         int n = 0;
         while (c == '-') {
@@ -274,6 +265,8 @@ bool music::play_note(Notes arg) {
     midiOutShortMsg(handle, arg.notes->volume << 16 | arg.notes->scale << 8 |
         arg.notes->cmd | arg.notes->channel);
     Sleep(arg.notes->sleep);
+    midiOutShortMsg(handle, arg.notes->volume << 16 | arg.notes->scale << 8 |
+        0x80 | arg.notes->channel);
     return true;
 }
 
