@@ -197,6 +197,26 @@ Notes music::get_note() {
         } break;
     }
 
+    int note_adj = 0;
+    switch (c) {
+        case '#':
+            note_adj = 1;
+            c = getch();
+            break;
+        case 'x':
+            note_adj = 2;
+            c = getch();
+            break;
+        case 'p':
+            note_adj = -1;
+            c = getch();
+            break;
+        case 'P':
+            note_adj = -2;
+            c = getch();
+            break;
+    }
+
     if (!IS_NOTE(c))
         ERR(fmt::format("next char is not a valid note (0-7), is {}", c));
 
@@ -207,20 +227,20 @@ Notes music::get_note() {
     } else {
         offset = c - 48 - 1; // 数字化
         c = getch();
-
+        //
         // C, C#, D, D#, E, F, F#, G, G#, A, A#, B
         // 0  1   2  3   4  5  6   7  8   9  10  11
         const int arr[] {0, 2, 4, 5, 7, 9, 11};
-        offset = arr[offset]; // 散列化、标准化
-
+        offset = arr[offset] + note_adj; // 散列化、标准化
+        //
         // 确定升半音
-        if (c == '#') {
-            if (offset % 12 == 4 || offset % 12 == 11) {
-                WAR(fmt::format("{:c} do not have a semitone, ignoring '#'", c));
-            } else
-                offset++;
-            c = getch();
-        }
+        //if (c == '#') {
+        //    if (offset % 12 == 4 || offset % 12 == 11) {
+        //        WAR(fmt::format("{:c} do not have a semitone, ignoring '#'", c));
+        //    } else
+        //        offset++;
+        //    c = getch();
+        //}
 
         ret.notes->scale = segment * 12 + offset + default_offset;
     }
@@ -264,9 +284,11 @@ bool music::play_note(Notes arg) {
         return false;
     midiOutShortMsg(handle, arg.notes->volume << 16 | arg.notes->scale << 8 |
         arg.notes->cmd | arg.notes->channel);
-    Sleep(arg.notes->sleep);
-    midiOutShortMsg(handle, arg.notes->volume << 16 | arg.notes->scale << 8 |
-        0x80 | arg.notes->channel);
+    if (arg.notes->sleep) {
+        Sleep(arg.notes->sleep);
+        midiOutShortMsg(handle, arg.notes->volume << 16 | arg.notes->scale << 8 |
+            0x80 | arg.notes->channel);
+    }
     return true;
 }
 
