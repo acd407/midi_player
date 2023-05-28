@@ -3,6 +3,8 @@
 #include <Windows.h>
 #include <fmt/core.h>
 #include <map>
+#include <string>
+#include <stdint.h>
 
 struct Note {
     byte timbre;   //音色
@@ -87,13 +89,13 @@ void music::print_content() {
 
     while (begin[nextcomma] != ',' && begin[nextcomma] != '\n')
         nextcomma++;
-    out.insert(nextcomma, "\033[0m"); // 恢复控制字符插入 
+    out.insert(nextcomma, "\033[0m"); // 恢复控制字符插入
     while (begin[lastcomma] != ',' && begin[lastcomma] != '\n') {
         lastcomma--;
         if (lastcomma == 0)
             break;
     }
-        
+
     out.insert(lastcomma, level_color_str[level]); // 彩色控制字符插入
 
     fmt::print("\tline:{: >3} | {}\n\t\t | {}{}^\033[0m\n",

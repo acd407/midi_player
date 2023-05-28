@@ -1,4 +1,4 @@
-#! env bash
+#!/usr/bin/bash
 
 source ./def.sh
 
@@ -18,8 +18,8 @@ for file in $SRC/*.cpp; do
             continue
         fi
     fi
-    echo $CC -o ${obj}.o $INC_char -c $file
-    $CC -o ${obj}.o $INC_char -c $file
+    echo $CC -o ${obj}.o -std=c++17 $INC_char -c $file
+    $CC -o ${obj}.o -std=c++17 $INC_char -c $file
 done
 
 # sh 就是一坨翔

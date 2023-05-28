@@ -1,4 +1,4 @@
-CC=g++
+CC=/ucrt64/bin/g++
 EXE=mu
 
 INC=./include
