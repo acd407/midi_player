@@ -3,49 +3,48 @@
 #include <stdlib.h>
 #include <string>
 
-template<typename T>
-constexpr auto IS_NOTE(T c) { return ((c) >= '0' && (c) <= '7'); }
+template <typename T>
+constexpr auto IS_NOTE (T c) {
+    return ((c) >= '0' && (c) <= '7');
+}
 #define BUFFERSIZE 8 * 1024
 
-music::music(const char *filename) {
+music::music (const char *filename) {
     this->file.filename = filename;
     FILE *fp;
-    fopen_s(&fp, filename, "r");
+    fopen_s (&fp, filename, "r");
     if (fp == nullptr)
-        ERR("file open error");
+        ERR ("file open error");
     file.raw = new char[BUFFERSIZE] {0};
     if (file.raw == nullptr)
-        ERR("buffer allocate error");
-    fread(file.raw, sizeof(char), BUFFERSIZE, fp);
-    fclose(fp);
+        ERR ("buffer allocate error");
+    fread (file.raw, sizeof (char), BUFFERSIZE, fp);
+    fclose (fp);
 
     // 默认音符
-    default_Note = *new Note {
-        0,    // 默认音色为钢琴
-        0x7f,
-        48,    // 默认中央C
-        9 << 4,  // 默认命令为播放
-        4,
-        500
-    };
+    default_Note = *new Note {0, // 默认音色为钢琴
+                              0x7f,
+                              48,     // 默认中央C
+                              9 << 4, // 默认命令为播放
+                              4,      500};
 
     // 默认 scale 段和偏移量
     default_segment = 4;
     default_offset = 0;
 
-    midiOutOpen(&handle, 0, 0, 0, CALLBACK_NULL);
+    midiOutOpen (&handle, 0, 0, 0, CALLBACK_NULL);
 }
 
 music::~music() {
-    delete[]file.raw;
-    midiOutClose(handle);
+    delete[] file.raw;
+    midiOutClose (handle);
 };
 
 // 返回非空字符
 char music::getunblank() {
     char c = file.raw[file.offset++];
-    if (!c) {
-        INF("forget to write the end sign '$'");
+    if (! c) {
+        INF ("forget to write the end sign '$'");
         return 0;
     }
     while (c == ' ' || c == '\t' || c == '\n') {
@@ -61,7 +60,7 @@ char music::getunblank() {
 char music::getch() // 不帮忙清逗号, 因为多字符没法弄
 {
     char c = getunblank();
-    if (c == '$')   // 结束分支
+    if (c == '$') // 结束分支
         return 0;
     if (c == '@') { // 注释：返回字符为下一行第一个有效字符
         while (c != '\n')
@@ -71,26 +70,27 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
     }
     // 功能处理分支
     if (c == 'S') { // Sleep
-        double n = atof(file.raw + file.offset);
+        double n = atof (file.raw + file.offset);
         if (n <= 0.0) {
-            WAR("illegal sleep input, set sleep to default");
+            WAR ("illegal sleep input, set sleep to default");
             n = default_Note.sleep;
         }
-        default_Note.sleep = int(60.0 / n * 1e3);
+        default_Note.sleep = int (60.0 / n * 1e3);
         c = file.raw[file.offset++];
         while (c >= '0' && c <= '9' || c == '.' || c == '-')
             c = file.raw[file.offset++];
         if (c != ',') {
-            WAR(fmt::format("expect ',', but acturlly get: '{:c}', skipping", c));
+            WAR (fmt::format ("expect ',', but acturlly get: '{:c}', skipping",
+                              c));
             while (c != ',')
                 c = file.raw[file.offset++];
         }
         return getch();
     }
     if (c == 'V') { // Volume
-        int n = atoi(file.raw + file.offset);
+        int n = atoi (file.raw + file.offset);
         if (n < 0 || n > 127) {
-            WAR("illegal volume input, set volume to default");
+            WAR ("illegal volume input, set volume to default");
             n = default_Note.volume;
         }
         default_Note.volume = n;
@@ -98,24 +98,26 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
         while (c >= '0' && c <= '9' || c == '-')
             c = file.raw[file.offset++];
         if (c != ',') {
-            WAR(fmt::format("expect ',', but acturlly get: '{:c}', skipping", c));
+            WAR (fmt::format ("expect ',', but acturlly get: '{:c}', skipping",
+                              c));
             while (c != ',')
                 c = file.raw[file.offset++];
         }
         return getch();
     }
     if (c == 'T') { // Timbre
-        int n = atoi(file.raw + file.offset);
+        int n = atoi (file.raw + file.offset);
         if (n == 0) {
-            WAR("illegal timbre input, set timbre to default");
+            WAR ("illegal timbre input, set timbre to default");
             n = default_Note.timbre;
         }
-        midiOutShortMsg(handle, n << 8 | 0xC0 | default_Note.channel);
+        midiOutShortMsg (handle, n << 8 | 0xC0 | default_Note.channel);
         c = file.raw[file.offset++];
         while (c >= '0' && c <= '9' || c == '-')
             c = file.raw[file.offset++];
         if (c != ',') {
-            WAR(fmt::format("expect ',', but acturlly get: '{:c}', skipping", c));
+            WAR (fmt::format ("expect ',', but acturlly get: '{:c}', skipping",
+                              c));
             while (c != ',')
                 c = file.raw[file.offset++];
         }
@@ -130,9 +132,11 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
             while (c == '+') {
                 segment++;
                 c = getch();
-            } break;
+            }
+            break;
         case '-':
-            if (*(file.raw + file.offset) < '0' || *(file.raw + file.offset) > '9') {
+            if (*(file.raw + file.offset) < '0' ||
+                *(file.raw + file.offset) > '9') {
                 while (c == '-') {
                     segment--;
                     c = getch();
@@ -141,22 +145,23 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
             } // 自动跳入 default
         default:
             offset = 0;
-            offset = atoi(file.raw + file.offset - 1);
+            offset = atoi (file.raw + file.offset - 1);
             while (c >= '0' && c <= '9' || c == '-')
                 c = getunblank();
             if (offset) {
                 if (offset > 11)
-                    INF("try O+ to make big offset.\tO+ <=> O12");
+                    INF ("try O+ to make big offset.\tO+ <=> O12");
                 default_offset = offset;
             } else {
-                WAR("segment or offset not provide, set to default");
+                WAR ("segment or offset not provide, set to default");
                 break;
             }
         }
         default_segment = segment;
 
         if (c != ',') {
-            WAR(fmt::format("expect ',', but acturlly get: '{:c}', skipping", c));
+            WAR (fmt::format ("expect ',', but acturlly get: '{:c}', skipping",
+                              c));
             while (c != ',')
                 c = file.raw[file.offset++];
         }
@@ -167,17 +172,15 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
 
 // [+-]{0..7}[#][.][/...][-...],
 
-Notes music::get_note() {
+Notes* music::get_note() {
     // 返回值结构体
-    auto ret = *new Notes {
-        1,
-        new Note(default_Note)
-    };
+    Notes *pret = new Notes {1, new Note (default_Note)};
+    Notes &ret = *pret;
 
     char c = getch();
     if (c == 0) {
         ret.num_note = 0;
-        return ret;
+        return pret;
     }
 
     int segment = default_segment, offset = default_offset;
@@ -189,36 +192,38 @@ Notes music::get_note() {
         while (c == '+') {
             segment++;
             c = getch();
-        } break;
+        }
+        break;
     case '-':
         while (c == '-') {
             segment--;
             c = getch();
-        } break;
+        }
+        break;
     }
 
     int note_adj = 0;
     switch (c) {
-        case '#':
-            note_adj = 1;
-            c = getch();
-            break;
-        case 'x':
-            note_adj = 2;
-            c = getch();
-            break;
-        case 'p':
-            note_adj = -1;
-            c = getch();
-            break;
-        case 'P':
-            note_adj = -2;
-            c = getch();
-            break;
+    case '#':
+        note_adj = 1;
+        c = getch();
+        break;
+    case 'x':
+        note_adj = 2;
+        c = getch();
+        break;
+    case 'p':
+        note_adj = -1;
+        c = getch();
+        break;
+    case 'P':
+        note_adj = -2;
+        c = getch();
+        break;
     }
 
-    if (!IS_NOTE(c))
-        ERR(fmt::format("next char is not a valid note (0-7), is {}", c));
+    if (! IS_NOTE (c))
+        ERR (fmt::format ("next char is not a valid note (0-7), is {}", c));
 
     // 空格音不用计算、没有升半音
     if (c == '0') {
@@ -234,9 +239,10 @@ Notes music::get_note() {
         offset = arr[offset] + note_adj; // 散列化、标准化
         //
         // 确定升半音
-        //if (c == '#') {
+        // if (c == '#') {
         //    if (offset % 12 == 4 || offset % 12 == 11) {
-        //        WAR(fmt::format("{:c} do not have a semitone, ignoring '#'", c));
+        //        WAR(fmt::format("{:c} do not have a semitone, ignoring '#'",
+        //        c));
         //    } else
         //        offset++;
         //    c = getch();
@@ -273,40 +279,41 @@ Notes music::get_note() {
     // && c != '$' 直接使用 '$' 是不被允许的
     while (c != ',') {
         if (c != ' ' && c != '\t')
-            INF("non-null character skiped");
+            INF ("non-null character skiped");
         c = getunblank();
     }
-    return ret;
+    return pret;
 }
 
-bool music::play_note(Notes arg) {
-    if (arg.num_note == 0 || arg.notes == nullptr)
+bool music::play_note (Notes* arg) {
+    if (arg->num_note == 0 || arg->notes == nullptr)
         return false;
-    midiOutShortMsg(handle, arg.notes->volume << 16 | arg.notes->scale << 8 |
-        arg.notes->cmd | arg.notes->channel);
-    if (arg.notes->sleep) {
-        Sleep(arg.notes->sleep);
-        midiOutShortMsg(handle, arg.notes->volume << 16 | arg.notes->scale << 8 |
-            0x80 | arg.notes->channel);
+    midiOutShortMsg (handle, arg->notes->volume << 16 | arg->notes->scale << 8 |
+                                 arg->notes->cmd | arg->notes->channel);
+    if (arg->notes->sleep) {
+        Sleep (arg->notes->sleep);
+        midiOutShortMsg (handle, arg->notes->volume << 16 |
+                                     arg->notes->scale << 8 | 0x80 |
+                                     arg->notes->channel);
     }
+    delete arg;
     return true;
 }
 
 void music::print() {
     for (int i = 0; file.raw[i] != '$'; i++) {
         if (file.raw[i] == '\0') {
-            INF("forget to write the end sign '$'");
+            INF ("forget to write the end sign '$'");
             return;
         }
-        putchar(file.raw[i]);
+        putchar (file.raw[i]);
     }
-    putchar('\n');
+    putchar ('\n');
 }
 
 void music::play() {
-    while (play_note(get_note()));
+    while (play_note (get_note()))
+        ;
 }
 
-void music::putch() {
-    file.offset--;
-}
+void music::putch() { file.offset--; }
