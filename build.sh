@@ -18,8 +18,8 @@ for file in $SRC/*.cpp; do
             continue
         fi
     fi
-    echo $CC -o ${obj}.o -std=c++17 $INC_char -c $file
-    $CC -o ${obj}.o -std=c++17 $INC_char -c $file
+    echo $CC -o ${obj}.o -std=c++17 $INC_char -c $file $CFLAGS
+    $CC -o ${obj}.o -std=c++17 $INC_char -c $file $CFLAGS
 done
 
 # sh 就是一坨翔
@@ -28,5 +28,5 @@ for _lib in $libs; do
 done
 
 OBJ="$(echo $SRC/*.o)"
-echo $CC -o $EXE $OBJ $LIB_char $libs_char -s
-$CC -o $EXE $OBJ $LIB_char $libs_char -s
+echo $CC -o $EXE $OBJ $LIB_char $libs_char -s $LIBFLAGS
+$CC -o $EXE $OBJ $LIB_char $libs_char -s $LIBFLAGS
