@@ -1,0 +1,34 @@
+---
+# We'll use defaults from the LLVM style, but with 4 columns indentation.
+BasedOnStyle: LLVM
+IndentWidth: 4
+---
+Language: Cpp
+# Tab
+TabWidth: 4
+UseTab: Never
+# 函数&控制语句空格
+SpaceBeforeParens: NonEmptyParentheses
+# Force pointers to the type for C++.
+DerivePointerAlignment: false
+# template 换行
+AlwaysBreakTemplateDeclarations: Yes
+# namespace 加 Tab
+NamespaceIndentation: All
+# 预处理缩进
+IndentPPDirectives: BeforeHash
+# 指针的位置
+PointerAlignment: Right
+# 连续宏对齐
+AlignConsecutiveMacros:
+    Enabled: true
+    AcrossEmptyLines: false
+    AcrossComments: false
+# 列表逗号位置
+AlignArrayOfStructures: Right
+# 初始化列表空白
+SpaceBeforeCpp11BracedList: true
+# 强制类型转换后空格
+SpaceAfterCStyleCast: true
+# ！后空格
+SpaceAfterLogicalNot: true
