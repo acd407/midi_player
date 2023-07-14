@@ -33,3 +33,5 @@
 
 .vscode
 VS/
+obj/
+dep/
