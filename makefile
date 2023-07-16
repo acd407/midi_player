@@ -1,7 +1,7 @@
 CC = g++
 CFLAGS = -g -Wall
 LDFLAGS = -lwinmm -lfmt
-TARGET = mu
+TARGET = mu.exe
 SRC_DIR = src
 INC_DIR = include
 OBJ_DIR = obj
@@ -31,5 +31,13 @@ $(DEP_DIR):
 
 clean:
 	rm -rf $(OBJ_DIR) $(DEP_DIR) $(TARGET)
+
+.ONESHELL:
+.SILENT:
+demo: $(TARGET)
+	for file in demo/*; do
+		echo -e "\n./$(TARGET) $$file"
+		./$(TARGET) $$file
+	done
 
 -include $(DEPS)
