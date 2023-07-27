@@ -17,9 +17,6 @@ I use win32 api, so only windows is support.
 if you use MSYS/MSYS2/Cygwin or any other subsystem that can use bash, <br>
 you can just use `make` to build the executable file.
 
-if you use Visual Studio, you can create a new project and add source files by yourself. <br>
-May be i will add vs prj file one day.
-
 ### directory & files
 
 `/src` the source
