@@ -1,7 +1,7 @@
 CC = g++
-CFLAGS = -g -Wall
-LDFLAGS = -lwinmm -lfmt
-TARGET = mu.exe
+CFLAGS = -g -Wall -std=c++17 $(shell pkg-config --cflags rtmidi)
+LDFLAGS = $(shell pkg-config --libs rtmidi)
+TARGET = mu
 SRC_DIR = src
 INC_DIR = include
 OBJ_DIR = obj
@@ -12,7 +12,7 @@ INCS := $(patsubst %,-I%,$(INC_DIR))
 OBJS := $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SRCS))
 DEPS := $(patsubst $(SRC_DIR)/%.cpp,$(DEP_DIR)/%.d,$(SRCS))
 
-.PHONY: all clean
+.PHONY: all clean demo
 
 all: $(TARGET)
 

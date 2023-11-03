@@ -9,35 +9,59 @@ constexpr auto IS_NOTE (T c) {
 }
 #define BUFFERSIZE 8 * 1024
 
-music::music (const char *filename) {
-    this->file.filename = filename;
-    FILE *fp;
-    fopen_s (&fp, filename, "r");
-    if (fp == nullptr)
-        ERR ("file open error");
-    file.raw = new char[BUFFERSIZE] {0};
-    if (file.raw == nullptr)
-        ERR ("buffer allocate error");
-    fread (file.raw, sizeof (char), BUFFERSIZE, fp);
+music::music (const char *file) {
+    RtMidiOut *midiout = 0;
+    std::vector<unsigned char> message;
+
+    // RtMidiOut constructor
+    try {
+        midiout = new RtMidiOut (chooseMidiApi());
+    } catch (RtMidiError &error) {
+        error.printMessage();
+        exit (EXIT_FAILURE);
+    }
+
+    // Call function to select port.
+    try {
+        if (openMidiPort (midiout) == false) {
+            delete midiout;
+            exit (EXIT_FAILURE);
+        }
+    } catch (RtMidiError &error) {
+        error.printMessage();
+        delete midiout;
+        exit (EXIT_FAILURE);
+    }
+    music2 (this, file, midiout);
+}
+
+void music2 (music *mu, const char *name, RtMidiOut *handle) {
+    mu->file.filename = name;
+    FILE *fp = fopen (mu->file.filename, "r");
+    // if (fp == nullptr)
+    //     ERR ("file open error");
+    mu->file.raw = new char[BUFFERSIZE] {0};
+    // if (mu->file.raw == nullptr)
+    //     ERR ("buffer allocate error");
+    fread (mu->file.raw, sizeof (char), BUFFERSIZE, fp);
     fclose (fp);
 
     // 默认音符
-    default_Note = *new Note {0, // 默认音色为钢琴
+    mu->default_Note = *new Note {0, // 默认音色为钢琴
                               0x7f,
                               48,     // 默认中央C
                               9 << 4, // 默认命令为播放
                               4,      500};
 
     // 默认 scale 段和偏移量
-    default_segment = 4;
-    default_offset = 0;
-
-    midiOutOpen (&handle, 0, 0, 0, CALLBACK_NULL);
+    mu->default_segment = 4;
+    mu->default_offset = 0;
+    mu->midiout = handle;
 }
 
 music::~music() {
     delete[] file.raw;
-    midiOutClose (handle);
+    delete midiout;
 };
 
 // 返回非空字符
@@ -80,8 +104,8 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
         while (c >= '0' && c <= '9' || c == '.' || c == '-')
             c = file.raw[file.offset++];
         if (c != ',') {
-            WAR (fmt::format ("expect ',', but acturlly get: '{:c}', skipping",
-                              c));
+            WAR (std::string ("expect ',', but acturlly get: '") + c +
+                 "', skipping");
             while (c != ',')
                 c = file.raw[file.offset++];
         }
@@ -98,8 +122,8 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
         while (c >= '0' && c <= '9' || c == '-')
             c = file.raw[file.offset++];
         if (c != ',') {
-            WAR (fmt::format ("expect ',', but acturlly get: '{:c}', skipping",
-                              c));
+            WAR (std::string ("expect ',', but acturlly get: '") + c +
+                 "', skipping");
             while (c != ',')
                 c = file.raw[file.offset++];
         }
@@ -111,13 +135,14 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
             WAR ("illegal timbre input, set timbre to default");
             n = default_Note.timbre;
         }
-        midiOutShortMsg (handle, n << 8 | 0xC0 | default_Note.channel);
+        const unsigned char msg[2] = {0xC0 | default_Note.channel, n};
+        midiout->sendMessage (msg, 2);
         c = file.raw[file.offset++];
         while (c >= '0' && c <= '9' || c == '-')
             c = file.raw[file.offset++];
         if (c != ',') {
-            WAR (fmt::format ("expect ',', but acturlly get: '{:c}', skipping",
-                              c));
+            WAR (std::string ("expect ',', but acturlly get: '") + c +
+                 "', skipping");
             while (c != ',')
                 c = file.raw[file.offset++];
         }
@@ -160,8 +185,8 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
         default_segment = segment;
 
         if (c != ',') {
-            WAR (fmt::format ("expect ',', but acturlly get: '{:c}', skipping",
-                              c));
+            WAR (std::string ("expect ',', but acturlly get: '") + c +
+                 "', skipping");
             while (c != ',')
                 c = file.raw[file.offset++];
         }
@@ -172,7 +197,7 @@ char music::getch() // 不帮忙清逗号, 因为多字符没法弄
 
 // [+-]{0..7}[#][.][/...][-...],
 
-Notes* music::get_note() {
+Notes *music::get_note() {
     // 返回值结构体
     Notes *pret = new Notes {1, new Note (default_Note)};
     Notes &ret = *pret;
@@ -223,7 +248,7 @@ Notes* music::get_note() {
     }
 
     if (! IS_NOTE (c))
-        ERR (fmt::format ("next char is not a valid note (0-7), is {}", c));
+        ERR (std::string ("next char is not a valid note (0-7), is ") + c);
 
     // 空格音不用计算、没有升半音
     if (c == '0') {
@@ -285,16 +310,18 @@ Notes* music::get_note() {
     return pret;
 }
 
-bool music::play_note (Notes* arg) {
+bool music::play_note (Notes *arg) {
     if (arg->num_note == 0 || arg->notes == nullptr)
         return false;
-    midiOutShortMsg (handle, arg->notes->volume << 16 | arg->notes->scale << 8 |
-                                 arg->notes->cmd | arg->notes->channel);
+    const unsigned char msg[3] = {arg->notes->cmd | arg->notes->channel,
+                                  arg->notes->scale, arg->notes->volume};
+    midiout->sendMessage (msg, 3);
+
     if (arg->notes->sleep) {
-        Sleep (arg->notes->sleep);
-        midiOutShortMsg (handle, arg->notes->volume << 16 |
-                                     arg->notes->scale << 8 | 0x80 |
-                                     arg->notes->channel);
+        SLEEP (arg->notes->sleep);
+        const unsigned char msg[3] = {0x80 | arg->notes->channel,
+                                      arg->notes->scale, arg->notes->volume};
+        midiout->sendMessage (msg, 3);
     }
     delete arg;
     return true;
@@ -312,8 +339,12 @@ void music::print() {
 }
 
 void music::play() {
-    while (play_note (get_note()))
-        ;
+    while (1) {
+        auto t = get_note();
+        play_note(t);
+    }
+    // while (play_note (get_note()))
+    //     ;
 }
 
 void music::putch() { file.offset--; }

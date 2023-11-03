@@ -1,18 +1,31 @@
 #pragma once
 
-#include <Windows.h>
-#include <fmt/core.h>
+#include <RtMidi.h>
+#include <iostream>
 #include <map>
+#include <stddef.h>
 #include <stdint.h>
 #include <string>
 
+// Platform-dependent sleep routines.
+#if defined(_WIN32)
+    #include <windows.h>
+    #define SLEEP(milliseconds) Sleep ((DWORD) milliseconds)
+#else // Unix variants
+    #include <unistd.h>
+    #define SLEEP(milliseconds) usleep ((unsigned long) (milliseconds * 1000.0))
+#endif
+
+RtMidi::Api chooseMidiApi();
+bool openMidiPort (RtMidiOut *);
+
 struct Note {
-    byte timbre;  // 音色
-    byte volume;  // 音量
-    byte scale;   // 音阶
-    byte cmd;     // 命令
-    byte channel; // 通道
-    int sleep;    // 长度
+    unsigned char timbre;  // 音色
+    unsigned char volume;  // 音量
+    unsigned char scale;   // 音阶
+    unsigned char cmd;     // 命令
+    unsigned char channel; // 通道
+    int sleep;             // 长度
 };
 
 struct Notes {
@@ -29,7 +42,7 @@ class music {
         int line = 0;
     } file;
     int default_segment, default_offset;
-    HMIDIOUT handle;
+    RtMidiOut *midiout = 0;
     Note default_Note;
     bool play_note (Notes *);
     Notes *get_note();
@@ -38,9 +51,11 @@ class music {
     void putch();
     template <int level>
     void print_content();
+    friend void music2 (music *, const char *, RtMidiOut *);
 
   public:
     music (const char *);
+    music (const char *, RtMidiOut *);
     ~music();
     void print();
     void play();
@@ -64,8 +79,9 @@ static const char *level_color_str[] = {"\033[91m", "\033[95m", "\033[96m"};
 
 template <int level, typename T>
 void music::interupt (const char *file, int line, T whicherr) {
-    fmt::print ("{}:{}: {}{}:\033[0m {}\n", file, line, level_color_str[level],
-                level_str_map[level], whicherr);
+    printf ("%s:%d: %s%s:\033[0m ", file, line, level_color_str[level],
+            level_str_map[level]);
+    std::cout << whicherr << std::endl;
     if (line)
         print_content<level>();
     if (! level)
@@ -95,6 +111,7 @@ void music::print_content() {
     out.insert (lastcomma + 1,
                 level_color_str[level]); // 彩色控制字符插入，不包含前面的逗号
 
-    fmt::print ("{: >4} | {}\n     | {}{}^\033[0m\n", file.line, out,
-                std::string (current_pos - begin, ' '), level_color_str[level]);
+    printf ("%4d | %s\n     | %s%s^\033[0m\n", file.line, out.c_str(),
+            std::string (current_pos - begin, ' ').c_str(),
+            level_color_str[level]);
 }
