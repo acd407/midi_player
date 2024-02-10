@@ -1,3 +1,4 @@
+## [outdated]  please see [mplayer](https://github.com/acd407/mplayer)
 ## A simple sheet music player ( for program learning )
 
 using Win32 midi api, play a kind of score .
